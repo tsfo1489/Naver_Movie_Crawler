@@ -4,8 +4,7 @@ import queue
 import math
 import time
 from tqdm import tqdm
-from bs4 import BeautifulSoup
-movie_code = 194205
+from bs4 import BeautifulSoup, Tag, NavigableString
 
 class file_writer(threading.Thread) :
     def __init__(self, file, queue) :
@@ -18,9 +17,10 @@ class file_writer(threading.Thread) :
             comment, movie_code = self.write_q.get()
             if comment == '/*-+' :
                 break
-            f.write('{},{}\n'.format(comment, movie_code))
+            comment = comment.replace(',', ' ')
+            f.write('{}, {}\n'.format(comment, movie_code))
 
-def movie_analyze(id, movie_code, page_n) :
+def movie_analyze(movie_code, page_n) :
     movie_url = 'https://movie.naver.com/movie/bi/mi/pointWriteFormList.nhn?code={}&page={}'.format(movie_code, page_n)
     total_cnt = 0
     ans = []
@@ -54,7 +54,7 @@ class Crawler(threading.Thread) :
             movie_code, page = self.input_q.get()
             if movie_code == -1 :
                 break
-            comment_list = movie_analyze(self.id, movie_code, page)
+            comment_list = movie_analyze(movie_code, page)
             self.done += len(comment_list)
             for comment in comment_list :
                 self.output_q.put(comment)
@@ -81,7 +81,7 @@ if __name__ == '__main__' :
     movie_q = queue.Queue()
     writer = file_writer(f, write_q)
     N_CRAWL = 32
-    TARGET_COMMENT = 10000
+    TARGET_COMMENT = 200000
 
     writer.daemon = True
     writer.start()
@@ -106,6 +106,7 @@ if __name__ == '__main__' :
 
     
     total_cnt = 0
+    movie_n = 0
     for movie in movie_list :
         if TARGET_COMMENT < total_cnt :
             break
@@ -117,7 +118,8 @@ if __name__ == '__main__' :
                 comment_n = soup.select_one('body > div > div > div.score_total > strong > em').string                
                 comment_n = int(comment_n.replace(',', ''))
                 total_cnt += comment_n
-                print('Movie({:>6}) has {:>5} comments / Total {} comments'.format(movie, comment_n, total_cnt))
+                movie_n += 1
+                print('Movie({:>6}) has {:>5} comments / Total {} movies {} comments'.format(movie, comment_n, movie_n, total_cnt))
                 for i in range(math.ceil(comment_n / 10)) :
                     movie_q.put([movie, i + 1])
 
