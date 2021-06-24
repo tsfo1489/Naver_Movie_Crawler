@@ -29,16 +29,8 @@ class NavermovieSpider(scrapy.Spider):
         movie_list = response.xpath('//*[@id="old_content"]/ul/li').getall()
         for m in movie_list :
             movie_code = int(self.code_re.search(m).group()[5:])
-            yield scrapy.Request(url=(self.comment_page + 'code={}'.format(movie_code)), callback=self.parse_movie)
-
-    def parse_movie(self, response) :
-        comment_n = response.xpath('/html/body/div/div/div[3]/strong/em').get()
-        if comment_n is None :
-            print('Error at', response.url)
-        comment_n = int(comment_n[4:-5].replace(',',''))
-        for i in range(0, math.ceil(comment_n / 10)) :
-            yield scrapy.Request(url=(response.url + '&page={}'.format(i + 1)), callback=self.parse_page)
-    
+            yield scrapy.Request(url=(self.comment_page + 'code={}&page=1'.format(movie_code)), callback=self.parse_page)
+ 
     def parse_page(self, response) :
         page = int(response.url[response.url.find('page=') + 5:])
         comment_n = response.xpath('/html/body/div/div/div[3]/strong/em').get()
