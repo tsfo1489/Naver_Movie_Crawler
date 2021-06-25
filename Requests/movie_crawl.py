@@ -80,7 +80,7 @@ if __name__ == '__main__' :
     write_q = queue.Queue()
     movie_q = queue.Queue()
     writer = file_writer(f, write_q)
-    N_CRAWL = 32
+    N_CRAWL = 20
     TARGET_COMMENT = 200000
 
     writer.daemon = True
