@@ -26,6 +26,8 @@ def crawl(opt : webdriver.ChromeOptions, input_q : Queue, output_q : Queue) :
     driver = webdriver.Chrome('chromedriver.exe', options=opt)
     while True :
         code, page = input_q.get()
+        if code == -1 :
+            break
         driver.get(page_url+str(code)+'&page='+str(page))
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
