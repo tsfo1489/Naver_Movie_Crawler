@@ -44,7 +44,6 @@ if __name__ == '__main__' :
 
     total_cnt = 0
     movie_n = 0
-    page_url = 'https://movie.naver.com/movie/bi/mi/pointWriteFormList.nhn?code='
     comment_n_list = []
     for movie in movie_list :
         driver.get(page_url + str(movie))
