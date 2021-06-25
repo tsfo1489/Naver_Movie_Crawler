@@ -52,7 +52,7 @@ if __name__ == '__main__' :
     driver.implicitly_wait(1)
     
     PROC_N = 3
-    TARGET_COMMENT = 200000
+    TARGET_COMMENT = 1000
 
     movie_list = []
     for i in range(50) :
