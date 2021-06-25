@@ -1,24 +1,41 @@
+from os import write
 from selenium import webdriver
 from bs4 import BeautifulSoup
 from math import ceil
 from urllib3.packages.six import u
 from tqdm import tqdm
+from multiprocessing import Process, Queue
 
 main_url = 'https://movie.naver.com/movie/sdb/browsing/bmovie.nhn?open=2020&page='
 page_url = 'https://movie.naver.com/movie/bi/mi/pointWriteFormList.nhn?code='
 
-def crawl(driver, code, page, pbar, f) :
-    driver.get(page_url+str(code)+'&page='+str(page))
-    html = driver.page_source
-    soup = BeautifulSoup(html, 'html.parser')
-    for i in range(10) :
-        comment_tag = soup.select_one('span#_filtered_ment_{}'.format(i))
-        if comment_tag is None :
+def file_writer(output_q : Queue, comment_n : int) :
+    f = open('output.csv', 'w', encoding='utf-8')
+    f.write('comment, movie_code\n')
+    pbar = tqdm(total=comment_n)
+    while True :
+        comment, movie_code = output_q.get()
+        if movie_code == -1 :
             break
-        comment = comment_tag.text.strip()
-        comment = comment.replace(',' , '')
-        f.write('{}, {}\n'.format(comment, code)) 
+        comment = comment.replace(',', ' ')
+        f.write('{}, {}\n'.format(comment, movie_code))
         pbar.update(1)
+    f.close()
+
+def crawl(opt : webdriver.ChromeOptions, input_q : Queue, output_q : Queue) :
+    driver = webdriver.Chrome('chromedriver.exe', options=opt)
+    while True :
+        code, page = input_q.get()
+        driver.get(page_url+str(code)+'&page='+str(page))
+        html = driver.page_source
+        soup = BeautifulSoup(html, 'html.parser')
+        for i in range(10) :
+            comment_tag = soup.select_one('span#_filtered_ment_{}'.format(i))
+            if comment_tag is None :
+                break
+            comment = comment_tag.text.strip()
+            output_q.put([comment, code])
+    driver.close()
 
 if __name__ == '__main__' :
     options = webdriver.ChromeOptions()
@@ -32,8 +49,11 @@ if __name__ == '__main__' :
     driver = webdriver.Chrome('chromedriver.exe', options=options)
     driver.implicitly_wait(1)
     
+    PROC_N = 3
+    TARGET_COMMENT = 200000
+
     movie_list = []
-    for i in range(1) :
+    for i in range(50) :
         driver.get(main_url + str(i + 1))
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
@@ -45,7 +65,13 @@ if __name__ == '__main__' :
     total_cnt = 0
     movie_n = 0
     comment_n_list = []
+    
+    input_q = Queue()
+    output_q = Queue()
+
     for movie in movie_list :
+        if TARGET_COMMENT < total_cnt :
+            break
         driver.get(page_url + str(movie))
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
@@ -54,13 +80,24 @@ if __name__ == '__main__' :
         movie_n += 1
         total_cnt += comment_n
         print('Movie({:>6}) has {:>5} comments / Total {} movies {} comments'.format(movie, comment_n, movie_n, total_cnt))
-    
-    f = open('output.csv', 'w', encoding='utf-8')
-    f.write('comment, movie_code\n')
-    pbar = tqdm(total=total_cnt)
-    for i in range(len(movie_list)) :
-        comment_n = comment_n_list[i]
         for j in range(ceil(comment_n / 10)) :
-            crawl(driver, movie_list[i], j + 1, pbar, f)
-    f.close()
+            input_q.put([movie, j + 1])
     driver.close()
+
+
+    writer = Process(target=file_writer, args=(output_q, total_cnt,), daemon=True)
+    writer.start()
+    crawlers = []
+    for i in range(PROC_N) :
+        proc = Process(target=crawl, args=(options, input_q, output_q, ), daemon=True)
+        proc.start()
+        crawlers.append(proc)
+            
+    for i in range(PROC_N) :
+        input_q.put([-1, 0])
+
+    for proc in crawlers :
+        proc.join()
+
+    output_q.put(['', -1])
+    writer.join()
